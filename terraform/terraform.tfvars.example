@@ -1,0 +1,18 @@
+# Copy to terraform.tfvars (gitignored) and fill in.
+
+aws_region  = "us-east-1"
+bucket_name = "gridlens-raw-<your-suffix>"
+
+snowflake_organization           = "<ORGNAME>"
+snowflake_account                = "<ACCOUNTNAME>"
+snowflake_admin_user             = "<YOUR_ADMIN_USER>"
+snowflake_admin_private_key_path = "~/.ssh/snowflake_admin_key.p8"
+
+# openssl rsa -in rsa_key.p8 -pubout | grep -v "PUBLIC KEY" | tr -d '\n'
+snowflake_service_user_public_key = "MIIBIjANBgkqh..."
+
+reporter_users       = []
+monthly_credit_quota = 10
+
+# Second apply only (see outputs.next_step):
+# snowpipe_sqs_arn = "arn:aws:sqs:us-east-1:123456789012:sf-snowpipe-..."
