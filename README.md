@@ -13,10 +13,15 @@ and used to forecast next-day demand. The forecasts are scored against EIA's own
 | **Stack** | Python · S3 · Snowpipe · Snowflake · dbt · Airflow (Astro + Cosmos) · LightGBM / SARIMA · Streamlit in Snowflake · GitHub Actions · Terraform |
 | **Regions** | CISO, ERCOT, PJM, MISO, NYISO, ISO-NE, SPP, FPL ([`regions.csv`](dbt/seeds/regions.csv)) |
 
-> **Headline result** *(fill in after the first 30 days of live forecasts; the query is
-> [`analyses/gridlens_vs_eia_mape.sql`](dbt/analyses/gridlens_vs_eia_mape.sql))*: next-day hourly
-> demand MAPE of **X.X%** for GridLens LightGBM vs **Y.Y%** for EIA's day-ahead forecast and
-> **Z.Z%** for the SARIMA baseline, over the same hours.
+> **Headline result** (rolling-origin backtest, 14 days × 24 hours × 8 regions, Oct 2026):
+> next-day hourly demand MAPE of **2.74%** for GridLens LightGBM vs **3.69%** for EIA's own
+> published day-ahead forecast on the same hours, **4.03%** for the SARIMA baseline and 10.82%
+> for seasonal naive. GridLens beats EIA in 5 of 8 regions; the biggest gain is CAISO
+> (3.51% vs 8.39%), while ERCOT and FPL remain better forecast by EIA.
+>
+> Backtest days use observed weather, so these are an upper bound on skill; live forecasts
+> (forecast weather) accumulate daily and are compared in the dashboard and
+> [`analyses/gridlens_vs_eia_mape.sql`](dbt/analyses/gridlens_vs_eia_mape.sql).
 
 ![Dashboard](docs/img/dashboard.gif)
 
@@ -178,7 +183,7 @@ Python 3.10+, a free [EIA API key](https://www.eia.gov/opendata/register.php), a
 python -m venv .venv && source .venv/bin/activate   # Windows: .venv\Scripts\activate
 pip install -e ".[dev,ingest,forecast,dashboard]"
 cp .env.example .env                                # fill in EIA_API_KEY at minimum
-pytest                                              # 31 tests, no network or warehouse needed
+pytest                                              # 32 tests, no network or warehouse needed
 ```
 
 ### 1. Ingest locally (no cloud needed)
@@ -318,7 +323,7 @@ accepted values, ranges, source freshness, SCD2 integrity, and a custom generic 
 `sums_to_parent`. It checks that hourly generation by fuel adds up to the reported net generation
 within 2%. It warns on a few hours and errors when the gap looks systematic, because EIA publishes
 the two series separately. Tests on the big facts only scan the last 10 days. The Python side has
-31 unit tests covering retries, pagination, idempotency, watermarks, leak-free features, backtest
+32 unit tests covering retries, pagination, idempotency, watermarks, leak-free features, backtest
 behavior, Snowpipe waiting and alerts.
 
 **Cost.**
@@ -352,7 +357,7 @@ rows, from de-duplicated raw data, so EIA revisions flow through.
   exposures), orchestrated in Airflow (Cosmos) with GitHub Actions slim CI/CD and Terraform-managed
   RBAC, warehouse and resource monitors.
 - Built next-day hourly demand forecasts (SARIMA baseline, global LightGBM with weather and calendar
-  features) with rolling-origin backtesting, reaching X% MAPE vs Y% for EIA's published day-ahead
+  features) with rolling-origin backtesting, reaching 2.74% MAPE vs 3.69% for EIA's published day-ahead
   forecast on the same hours, and published them to a Streamlit-in-Snowflake dashboard.
 
 ## Data & licensing
