@@ -1,0 +1,15 @@
+# Snowflake CLI project: `cd dashboard && snow streamlit deploy --replace --role TRANSFORMER`
+definition_version: 2
+entities:
+  gridlens_dashboard:
+    type: streamlit
+    identifier:
+      name: GRIDLENS_DASHBOARD
+      database: ANALYTICS
+      schema: APPS
+    title: GridLens
+    query_warehouse: GRIDLENS_WH
+    main_file: streamlit_app.py
+    artifacts:
+      - streamlit_app.py
+      - environment.yml

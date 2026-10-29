@@ -1,0 +1,30 @@
+version: 2
+
+exposures:
+  - name: gridlens_dashboard
+    label: GridLens dashboard
+    type: dashboard
+    maturity: medium
+    url: https://app.snowflake.com/ # replace with the Streamlit app URL after deploy
+    description: >
+      Streamlit in Snowflake app (dashboard/streamlit_app.py): demand vs forecast,
+      generation mix by fuel, and forecast error over time against EIA's benchmark.
+    depends_on:
+      - ref('fct_hourly_demand')
+      - ref('fct_generation_by_fuel')
+      - ref('fct_demand_forecast')
+      - ref('fct_forecast_accuracy_daily')
+      - ref('dim_region')
+      - ref('dim_fuel_type')
+    owner:
+      name: Ankit Kumar
+
+  - name: demand_forecast_job
+    label: Demand forecast job
+    type: ml
+    maturity: medium
+    description: gridlens-forecast reads the feature table and writes ANALYTICS.ML.*.
+    depends_on:
+      - ref('ml_demand_features')
+    owner:
+      name: Ankit Kumar
