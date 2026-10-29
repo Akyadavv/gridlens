@@ -1,0 +1,69 @@
+[build-system]
+requires = ["setuptools>=68", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "gridlens"
+version = "0.1.0"
+description = "End-to-end analytics platform on public US power-grid data (EIA + Open-Meteo -> S3 -> Snowflake -> dbt -> forecasts)."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+  "requests>=2.31",
+  "python-dotenv>=1.0",
+]
+
+[project.optional-dependencies]
+ingest = ["boto3>=1.34"]
+snowflake = [
+  "snowflake-connector-python[pandas]>=3.10",
+  "cryptography>=42",
+  # The connector treats an out-of-range pyarrow as missing ("pyarrow is not installed"),
+  # and pip does not always enforce its [pandas] pin when the connector is preinstalled.
+  "pyarrow>=14,<24",
+]
+forecast = [
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "lightgbm>=4.3",
+  "scikit-learn>=1.4",
+  "statsmodels>=0.14",
+  "gridlens[snowflake]",
+]
+dashboard = [
+  "streamlit>=1.35",
+  "altair>=5",
+  "gridlens[snowflake]",
+]
+dev = [
+  "pytest>=8",
+  "ruff>=0.6",
+  "sqlfluff>=4.0",
+  "pandas>=2.1",
+  "numpy>=1.26",
+  "holidays>=0.50",
+]
+
+[project.scripts]
+gridlens-ingest = "gridlens.ingest.cli:main"
+gridlens-forecast = "gridlens.forecast.run:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+gridlens = ["common/regions.csv"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+addopts = "-q"
+
+[tool.ruff]
+line-length = 100
+target-version = "py310"
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM"]
+# Line length is a formatting concern (line-length above), not a lint failure.
+ignore = ["E501"]

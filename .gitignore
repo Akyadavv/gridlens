@@ -1,0 +1,47 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+.ruff_cache/
+
+# Secrets / local config
+.env
+*.p8
+*.pem
+rsa_key*
+
+# Local data lake (storage backend = local)
+data/
+
+# dbt
+dbt/target/
+dbt/dbt_packages/
+dbt/logs/
+dbt/.user.yml
+prod_state/
+
+# Terraform
+terraform/.terraform/
+terraform/*.tfstate
+terraform/*.tfstate.*
+terraform/*.tfvars
+!terraform/*.tfvars.example
+terraform/.terraform.lock.hcl
+terraform/tfplan
+terraform/plan.txt
+
+# Airflow (Astro) - include/ is populated by scripts/sync_airflow_include.py
+airflow/include/*
+!airflow/include/.gitkeep
+airflow/.astro/*
+!airflow/.astro/config.yaml
+airflow/airflow_settings.yaml
+
+# OS / IDE
+.DS_Store
+Thumbs.db
+.vscode/
+.idea/

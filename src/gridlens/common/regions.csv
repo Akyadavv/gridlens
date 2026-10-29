@@ -1,0 +1,9 @@
+region_code,region_name,iso_type,timezone,weather_city,latitude,longitude
+CISO,California Independent System Operator,ISO,America/Los_Angeles,Los Angeles,34.0522,-118.2437
+ERCO,Electric Reliability Council of Texas,ISO,America/Chicago,Houston,29.7604,-95.3698
+PJM,PJM Interconnection,RTO,America/New_York,Philadelphia,39.9526,-75.1652
+MISO,Midcontinent Independent System Operator,RTO,America/Chicago,Minneapolis,44.9778,-93.2650
+NYIS,New York Independent System Operator,ISO,America/New_York,New York,40.7128,-74.0060
+ISNE,ISO New England,ISO,America/New_York,Boston,42.3601,-71.0589
+SWPP,Southwest Power Pool,RTO,America/Chicago,Oklahoma City,35.4676,-97.5164
+FPL,Florida Power & Light,Utility,America/New_York,Miami,25.7617,-80.1918
