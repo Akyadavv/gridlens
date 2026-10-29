@@ -1,0 +1,38 @@
+name: CI cleanup
+
+# Drop the pull request's DEV.CI_PR_<n>* schemas when it is merged or closed.
+on:
+  pull_request:
+    types: [closed]
+
+permissions:
+  contents: read
+
+jobs:
+  drop-ci-schemas:
+    runs-on: ubuntu-latest
+    env:
+      DBT_TARGET: ci
+      DBT_CI_SCHEMA: CI_PR_${{ github.event.pull_request.number }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_PRIVATE_KEY_PATH: ${{ github.workspace }}/.keys/rsa_key.p8
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install "dbt-core>=1.10,<2" "dbt-snowflake>=1.10,<2"
+      - name: Write Snowflake key
+        run: |
+          mkdir -p "$(dirname "$SNOWFLAKE_PRIVATE_KEY_PATH")"
+          printf '%s\n' "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$SNOWFLAKE_PRIVATE_KEY_PATH"
+          chmod 600 "$SNOWFLAKE_PRIVATE_KEY_PATH"
+      - run: dbt deps
+      - run: 'dbt run-operation drop_ci_schemas --args "{prefix: $DBT_CI_SCHEMA}"'
+      - if: always()
+        run: rm -f "$SNOWFLAKE_PRIVATE_KEY_PATH"

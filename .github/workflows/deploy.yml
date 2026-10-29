@@ -1,0 +1,106 @@
+name: Deploy
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+concurrency:
+  group: deploy-prod
+  cancel-in-progress: false # never cancel a half-finished prod build
+
+permissions:
+  contents: read
+
+jobs:
+  dbt-prod:
+    name: dbt build (prod) + docs
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      DBT_TARGET: prod
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_PRIVATE_KEY_PATH: ${{ github.workspace }}/.keys/rsa_key.p8
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install "dbt-core>=1.10,<2" "dbt-snowflake>=1.10,<2"
+      - name: Write Snowflake key
+        run: |
+          mkdir -p "$(dirname "$SNOWFLAKE_PRIVATE_KEY_PATH")"
+          printf '%s\n' "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$SNOWFLAKE_PRIVATE_KEY_PATH"
+          chmod 600 "$SNOWFLAKE_PRIVATE_KEY_PATH"
+      - run: dbt deps
+      # Incremental models make a full `dbt build` on merge cheap; Airflow does the daily runs.
+      - run: dbt build --fail-fast
+      - run: dbt docs generate
+      - if: always()
+        run: rm -f "$SNOWFLAKE_PRIVATE_KEY_PATH"
+
+      # Slim CI on pull requests compares against this manifest.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dbt-manifest
+          path: dbt/target/manifest.json
+          retention-days: 90
+
+      - name: Assemble docs site
+        run: |
+          mkdir -p ../site
+          cp target/index.html target/manifest.json target/catalog.json ../site/
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+
+  docs-pages:
+    name: Publish dbt docs to GitHub Pages
+    needs: dbt-prod
+    if: vars.PUBLISH_DOCS == 'true'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
+
+  streamlit:
+    name: Deploy Streamlit in Snowflake
+    needs: dbt-prod
+    if: vars.DEPLOY_STREAMLIT == 'true'
+    runs-on: ubuntu-latest
+    environment: production
+    defaults:
+      run:
+        working-directory: dashboard
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install snowflake-cli
+      - name: Write Snowflake key
+        run: |
+          mkdir -p "$RUNNER_TEMP/keys"
+          printf '%s\n' "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$RUNNER_TEMP/keys/rsa_key.p8"
+          chmod 600 "$RUNNER_TEMP/keys/rsa_key.p8"
+      - run: |
+          snow streamlit deploy --replace --temporary-connection \
+            --account "${{ secrets.SNOWFLAKE_ACCOUNT }}" --user "${{ secrets.SNOWFLAKE_USER }}" \
+            --authenticator SNOWFLAKE_JWT --private-key-file "$RUNNER_TEMP/keys/rsa_key.p8" \
+            --role TRANSFORMER --warehouse GRIDLENS_WH
+        env:
+          PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      - if: always()
+        run: rm -f "$RUNNER_TEMP/keys/rsa_key.p8"

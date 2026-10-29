@@ -1,0 +1,101 @@
+name: CI
+
+on:
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ci-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  actions: read # download the prod manifest from the latest deploy run
+
+env:
+  PYTHON_VERSION: "3.12"
+
+jobs:
+  python:
+    name: Python lint + tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install -e ".[dev,ingest,forecast]"
+      - run: ruff check src tests scripts airflow dashboard
+      - run: pytest
+
+  sqlfluff:
+    name: SQLFluff lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install "sqlfluff>=4.0"
+      # Jinja templater: no warehouse connection needed (see dbt/.sqlfluff).
+      - run: sqlfluff lint models tests analyses --format github-annotation-native
+        working-directory: dbt
+
+  dbt-slim-ci:
+    name: dbt build (modified models only)
+    needs: [sqlfluff]
+    runs-on: ubuntu-latest
+    env:
+      DBT_TARGET: ci
+      DBT_CI_SCHEMA: CI_PR_${{ github.event.pull_request.number }}
+      SNOWFLAKE_ACCOUNT: ${{ secrets.SNOWFLAKE_ACCOUNT }}
+      SNOWFLAKE_USER: ${{ secrets.SNOWFLAKE_USER }}
+      SNOWFLAKE_PRIVATE_KEY_PASSPHRASE: ${{ secrets.SNOWFLAKE_PRIVATE_KEY_PASSPHRASE }}
+      SNOWFLAKE_PRIVATE_KEY_PATH: ${{ github.workspace }}/.keys/rsa_key.p8
+    defaults:
+      run:
+        working-directory: dbt
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+      - run: pip install "dbt-core>=1.10,<2" "dbt-snowflake>=1.10,<2"
+      - name: Write Snowflake key
+        run: |
+          mkdir -p "$(dirname "$SNOWFLAKE_PRIVATE_KEY_PATH")"
+          printf '%s\n' "${{ secrets.SNOWFLAKE_PRIVATE_KEY }}" > "$SNOWFLAKE_PRIVATE_KEY_PATH"
+          chmod 600 "$SNOWFLAKE_PRIVATE_KEY_PATH"
+      - run: dbt deps
+
+      - name: Fetch production manifest
+        id: state
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          run_id=$(gh run list --repo "$GITHUB_REPOSITORY" --workflow deploy.yml --branch main \
+                     --status success --limit 1 --json databaseId --jq '.[0].databaseId // empty')
+          if [ -n "$run_id" ] && gh run download "$run_id" --repo "$GITHUB_REPOSITORY" \
+                                   --name dbt-manifest --dir ../prod_state; then
+            echo "found=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No prod manifest yet: building everything."
+            echo "found=false" >> "$GITHUB_OUTPUT"
+          fi
+
+      # Slim CI: build only what changed (and everything downstream of it) into
+      # DEV.CI_PR_<n>_*; unchanged parents are read from prod via --defer.
+      - name: dbt build (slim)
+        if: steps.state.outputs.found == 'true'
+        run: dbt build --select state:modified+ --defer --state ../prod_state --fail-fast
+
+      - name: dbt build (full, first run)
+        if: steps.state.outputs.found != 'true'
+        run: dbt build --exclude tag:forecast_output --fail-fast
+
+      - name: Remove key
+        if: always()
+        run: rm -f "$SNOWFLAKE_PRIVATE_KEY_PATH"
