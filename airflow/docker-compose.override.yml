@@ -1,0 +1,13 @@
+# Picked up automatically by `astro dev start`.
+# Local mode: raw files + watermarks live on the host in ../data/raw, so ingestion state
+# survives container rebuilds and stays shared with the CLI tools. The service key is
+# mounted read-only instead of being baked into the image.
+services:
+  scheduler:
+    volumes:
+      - ../data/raw:/usr/local/airflow/gridlens_data
+      - ../rsa_key.p8:/usr/local/airflow/secrets/rsa_key.p8:ro
+  dag-processor:
+    volumes:
+      - ../data/raw:/usr/local/airflow/gridlens_data
+      - ../rsa_key.p8:/usr/local/airflow/secrets/rsa_key.p8:ro
