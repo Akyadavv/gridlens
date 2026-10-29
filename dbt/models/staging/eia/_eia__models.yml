@@ -1,0 +1,66 @@
+version: 2
+
+models:
+  - name: stg_eia__region_data
+    description: Typed, de-duplicated hourly region series (latest load wins).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc, series_type]
+    columns:
+      - name: region_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('regions')
+                field: region_code
+      - name: period_utc
+        description: Hour-ending timestamp in UTC.
+        data_tests: [not_null]
+      - name: series_type
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["D", "DF", "NG", "TI"]
+      - name: value_units
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["megawatthours"]
+              config:
+                severity: warn
+
+  - name: stg_eia__fuel_type_data
+    description: Typed, de-duplicated hourly net generation by fuel.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc, fuel_type_code]
+    columns:
+      - name: fuel_type_code
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('fuel_types')
+                field: fuel_type_code
+              config:
+                severity: warn # EIA occasionally adds codes; warn, then extend the seed
+
+  - name: stg_eia__generator_capacity
+    description: EIA-860M generator inventory, one row per generator per month.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [plant_id, generator_id, report_month]
+    columns:
+      - name: plant_id
+        data_tests: [not_null]
+      - name: nameplate_capacity_mw
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 5000
+                inclusive: true

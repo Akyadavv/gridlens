@@ -1,0 +1,16 @@
+fuel_type_code,fuel_type_name,fuel_category,is_renewable,is_dispatchable,display_order
+COL,Coal,Fossil,false,true,1
+NG,Natural gas,Fossil,false,true,2
+OIL,Petroleum,Fossil,false,true,3
+NUC,Nuclear,Nuclear,false,true,4
+WAT,Hydro,Renewable,true,true,5
+WND,Wind,Renewable,true,false,6
+SUN,Solar,Renewable,true,false,7
+GEO,Geothermal,Renewable,true,true,8
+SNB,Solar with battery,Renewable,true,false,9
+BAT,Battery storage,Storage,false,true,10
+PS,Pumped storage,Storage,false,true,11
+OES,Other energy storage,Storage,false,true,12
+OTH,Other,Other,false,true,13
+UES,Unknown energy storage,Storage,false,true,14
+UNK,Unknown,Other,false,true,15

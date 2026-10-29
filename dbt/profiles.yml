@@ -1,0 +1,47 @@
+# Committed on purpose: every secret comes from environment variables.
+# Run dbt from this folder (or pass --profiles-dir dbt). Targets:
+#   dev  -> DEV.DBT_<DBT_USER>_<layer>     (your sandbox)
+#   ci   -> DEV.<DBT_CI_SCHEMA>_<layer>    (one per pull request, dropped on close)
+#   prod -> ANALYTICS.<layer>              (deployed on merge to main / Airflow)
+gridlens:
+  target: "{{ env_var('DBT_TARGET', 'dev') }}"
+  outputs:
+    dev:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
+      role: TRANSFORMER
+      warehouse: GRIDLENS_WH
+      database: DEV
+      schema: "DBT_{{ env_var('DBT_USER', 'dev') | upper }}"
+      threads: 4
+      query_tag: dbt_dev
+      client_session_keep_alive: false
+
+    ci:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
+      role: TRANSFORMER
+      warehouse: GRIDLENS_WH
+      database: DEV
+      schema: "{{ env_var('DBT_CI_SCHEMA', 'CI') }}"
+      threads: 4
+      query_tag: dbt_ci
+
+    prod:
+      type: snowflake
+      account: "{{ env_var('SNOWFLAKE_ACCOUNT') }}"
+      user: "{{ env_var('SNOWFLAKE_USER') }}"
+      private_key_path: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PATH') }}"
+      private_key_passphrase: "{{ env_var('SNOWFLAKE_PRIVATE_KEY_PASSPHRASE', '') }}"
+      role: TRANSFORMER
+      warehouse: GRIDLENS_WH
+      database: ANALYTICS
+      schema: PUBLIC
+      threads: 4
+      query_tag: dbt_prod

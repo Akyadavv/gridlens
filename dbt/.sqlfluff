@@ -1,0 +1,49 @@
+[sqlfluff]
+dialect = snowflake
+# The jinja templater (not the dbt one) so linting needs no warehouse connection and runs
+# first in CI. dbt builtins (ref, source, config, is_incremental...) are emulated, project
+# macros are loaded from ./macros, and package macros are stubbed in ./.sqlfluff_libs.
+templater = jinja
+max_line_length = 120
+large_file_skip_byte_limit = 40000
+# ST06 (column order) fights readable select lists; AM04 flags `select *` in CTE imports.
+exclude_rules = ST06, AM04
+
+[sqlfluff:templater:jinja]
+apply_dbt_builtins = True
+load_macros_from_path = macros
+library_path = .sqlfluff_libs
+
+[sqlfluff:indentation]
+tab_space_size = 4
+indented_joins = False
+indented_using_on = True
+implicit_indents = allow
+
+[sqlfluff:layout:type:comma]
+line_position = trailing
+
+[sqlfluff:rules:capitalisation.keywords]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.identifiers]
+extended_capitalisation_policy = lower
+ignore_words_regex = ^[A-Z_]+$
+
+[sqlfluff:rules:capitalisation.functions]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.literals]
+capitalisation_policy = lower
+
+[sqlfluff:rules:capitalisation.types]
+extended_capitalisation_policy = lower
+
+[sqlfluff:rules:aliasing.table]
+aliasing = explicit
+
+[sqlfluff:rules:aliasing.column]
+aliasing = explicit
+
+[sqlfluff:rules:ambiguous.column_references]
+group_by_and_order_by_style = implicit

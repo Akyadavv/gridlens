@@ -1,0 +1,29 @@
+version: 2
+
+sources:
+  - name: eia
+    description: >
+      EIA API v2 responses landed by gridlens-ingest as NDJSON in S3 and loaded by Snowpipe.
+      Each row is one API record in `record` (VARIANT) plus load metadata.
+    database: RAW
+    schema: EIA
+    config:
+      loaded_at_field: _loaded_at
+      freshness:
+        warn_after: {count: 6, period: hour}
+        error_after: {count: 30, period: hour}
+    tables:
+      - name: region_data
+        description: >
+          electricity/rto/region-data, hourly (UTC). Series types: D demand, DF day-ahead
+          demand forecast, NG net generation, TI total interchange.
+      - name: fuel_type_data
+        description: electricity/rto/fuel-type-data, hourly (UTC) net generation by energy source.
+      - name: generator_capacity
+        description: >
+          electricity/operating-generator-capacity (EIA-860M), one row per generator per month.
+          Published with a ~2 month lag, hence the relaxed freshness.
+        config:
+          freshness:
+            warn_after: {count: 45, period: day}
+            error_after: {count: 90, period: day}

@@ -1,0 +1,19 @@
+version: 2
+
+sources:
+  - name: open_meteo
+    description: Open-Meteo hourly weather for each region's main city (no API key).
+    database: RAW
+    schema: OPEN_METEO
+    config:
+      loaded_at_field: _loaded_at
+      freshness:
+        warn_after: {count: 30, period: hour}
+        error_after: {count: 54, period: hour}
+    tables:
+      - name: weather_archive
+        description: ERA5-based reanalysis. Lags real time by ~5 days but is the best "actual".
+      - name: weather_forecast
+        description: >
+          Latest forecast run, one file per issue date, covering the last week and the next
+          days. Fills the gap the archive cannot cover yet and provides next-day features.

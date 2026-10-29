@@ -1,0 +1,45 @@
+name: gridlens
+version: "1.0.0"
+config-version: 2
+profile: gridlens
+
+model-paths: ["models"]
+analysis-paths: ["analyses"]
+test-paths: ["tests"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+snapshot-paths: ["snapshots"]
+
+clean-targets: ["target", "dbt_packages"]
+
+vars:
+  # Calendar dimension bounds (inclusive start, exclusive end).
+  calendar_start: "2019-01-01"
+  calendar_end: "2031-01-01"
+  # Fuel-mix vs net-generation tolerance for the sums_to_parent test.
+  generation_balance_tolerance_pct: 2.0
+
+models:
+  gridlens:
+    +copy_grants: true
+    staging:
+      +materialized: view
+      +schema: staging
+    intermediate:
+      +materialized: view
+      +schema: intermediate
+    marts:
+      +materialized: table
+      +schema: marts
+
+seeds:
+  gridlens:
+    +schema: seeds
+
+snapshots:
+  gridlens:
+    +schema: snapshots
+
+data_tests:
+  gridlens:
+    +store_failures: false
