@@ -1,0 +1,23 @@
+version: 2
+
+models:
+  - name: int_weather_hourly
+    description: Best available weather per region-hour (archive preferred over forecast).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc]
+    columns:
+      - name: weather_source
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["archive", "forecast"]
+
+  - name: int_plants_latest
+    description: Plant-grain rollup of the latest EIA-860M month; input to the SCD2 snapshot.
+    columns:
+      - name: plant_id
+        data_tests: [unique, not_null]
+      - name: nameplate_capacity_mw
+        data_tests: [not_null]

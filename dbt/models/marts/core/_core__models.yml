@@ -1,0 +1,180 @@
+version: 2
+
+# Tests on the large hourly facts are limited to the last 10 days via `where`: older rows
+# were already tested when they were merged, and scanning full history on every run is the
+# main avoidable warehouse cost in this project.
+
+models:
+  # ---- Dimensions -----------------------------------------------------------------------
+  - name: dim_region
+    description: Conformed balancing-authority dimension (one row per region).
+    columns:
+      - name: region_key
+        data_tests: [unique, not_null]
+      - name: region_code
+        data_tests: [unique, not_null]
+      - name: timezone
+        description: IANA zone used to derive local time in every fact.
+
+  - name: dim_date
+    description: Calendar day dimension with US federal holidays.
+    columns:
+      - name: date_key
+        description: Integer YYYYMMDD.
+        data_tests: [unique, not_null]
+      - name: date_day
+        data_tests: [unique, not_null]
+
+  - name: dim_hour
+    description: Hour of the local day (0-23) with day part and on-peak flag.
+    columns:
+      - name: hour_key
+        data_tests:
+          - unique
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9, 10, 11, 12, 13, 14, 15, 16, 17, 18, 19, 20, 21, 22, 23]
+                quote: false
+
+  - name: dim_fuel_type
+    description: EIA-930 fuel types with category and renewable/dispatchable flags.
+    columns:
+      - name: fuel_type_key
+        data_tests: [unique, not_null]
+      - name: fuel_type_code
+        data_tests: [unique, not_null]
+
+  - name: dim_plant
+    description: >
+      SCD Type 2 plant dimension built from the snap_plants snapshot. One row per plant
+      version; exactly one current row per plant still in the inventory.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [plant_id, valid_from]
+    columns:
+      - name: plant_version_key
+        data_tests: [unique, not_null]
+      - name: region_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+              config:
+                where: "is_current"
+      - name: fuel_type_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_fuel_type')
+                field: fuel_type_key
+      - name: valid_to
+        data_tests: [not_null]
+
+  # ---- Facts ----------------------------------------------------------------------------
+  - name: fct_hourly_demand
+    description: >
+      Hourly demand, EIA day-ahead forecast, net generation and interchange per region.
+      Incremental (merge on region_code + period_utc); see the model SQL for why changed
+      keys are rebuilt rather than individual rows merged.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc]
+          config:
+            where: "period_utc >= dateadd(day, -10, current_date)"
+    columns:
+      - name: region_key
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: date_key
+        description: Local calendar date of the hour (region time zone).
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+              config:
+                where: "period_utc >= dateadd(day, -10, current_date)"
+      - name: hour_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_hour')
+                field: hour_key
+              config:
+                where: "period_utc >= dateadd(day, -10, current_date)"
+      - name: demand_mwh
+        description: Average hourly load in MW = energy in MWh for the hour.
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
+                max_value: 250000
+              config:
+                where: "period_utc >= dateadd(day, -10, current_date)"
+                severity: warn
+
+  - name: fct_generation_by_fuel
+    description: Hourly net generation per region and fuel type (incremental merge).
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc, fuel_type_code]
+          config:
+            where: "period_utc >= dateadd(day, -10, current_date)"
+    columns:
+      - name: region_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: fuel_type_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_fuel_type')
+                field: fuel_type_key
+      - name: net_generation_mwh
+        data_tests:
+          - sums_to_parent:
+              arguments:
+                parent_model: ref('fct_hourly_demand')
+                parent_column: net_generation_mwh
+                join_columns: [region_code, period_utc]
+                tolerance_pct: "{{ var('generation_balance_tolerance_pct') }}"
+              config:
+                where: "period_utc >= dateadd(day, -10, current_date)"
+                # EIA's two series are reported separately and sometimes disagree; flag a
+                # handful of hours, fail only when it looks systematic.
+                warn_if: ">0"
+                error_if: ">48"
+
+  - name: fct_weather_hourly
+    description: Hourly weather per region; archive (observed) preferred over forecast.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc]
+          config:
+            where: "period_utc >= dateadd(day, -10, current_date)"
+    columns:
+      - name: region_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: weather_source
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["archive", "forecast"]

@@ -1,0 +1,24 @@
+version: 2
+
+snapshots:
+  - name: snap_plants
+    description: >
+      SCD Type 2 history of power plants. Each dbt run compares the latest EIA-860M state of
+      every plant with the current snapshot row and closes/opens a version when any tracked
+      attribute changes (uprates, retirements, ownership changes, repowering to a new fuel).
+      Plants that disappear from the inventory are end-dated (hard_deletes: invalidate).
+    relation: ref('int_plants_latest')
+    config:
+      unique_key: plant_id
+      strategy: check
+      check_cols:
+        - plant_name
+        - operator_name
+        - region_code
+        - primary_fuel_type_code
+        - primary_energy_source_code
+        - generator_count
+        - nameplate_capacity_mw
+        - is_operating
+      hard_deletes: invalidate
+      dbt_valid_to_current: "to_timestamp_ntz('9999-12-31')"
