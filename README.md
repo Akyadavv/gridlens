@@ -5,7 +5,7 @@ generation by fuel and weather for eight US grid regions are ingested from publi
 S3, auto-loaded into Snowflake, modeled as a Kimball star schema with dbt, orchestrated in Airflow,
 and used to forecast next-day demand. The forecasts are scored against EIA's own published forecast.
 
-![CI](https://github.com/<you>/gridlens/actions/workflows/ci.yml/badge.svg)
+![CI](https://github.com/Akyadavv/gridlens/actions/workflows/ci.yml/badge.svg)
 
 | | |
 |---|---|
