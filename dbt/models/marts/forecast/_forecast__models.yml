@@ -1,0 +1,50 @@
+version: 2
+
+models:
+  - name: ml_demand_features
+    description: >
+      Region x UTC hour feature table for the forecast job: demand, EIA forecast, weather,
+      and local calendar features. Includes future hours that only have forecast weather.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [region_code, period_utc]
+
+  - name: fct_demand_forecast
+    description: >
+      gridlens forecasts (LightGBM, SARIMA, seasonal naive) joined to actual demand and to
+      EIA's day-ahead forecast. Live rows (is_backtest = false) are true day-ahead forecasts;
+      backtest rows come from rolling-origin re-forecasts of recent days.
+    columns:
+      - name: forecast_key
+        data_tests: [unique, not_null]
+      - name: region_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_region')
+                field: region_key
+      - name: date_key
+        data_tests:
+          - relationships:
+              arguments:
+                to: ref('dim_date')
+                field: date_key
+
+  - name: fct_forecast_accuracy_daily
+    description: Daily MAPE per model and region, including EIA's day-ahead forecast as a benchmark.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [model_name, region_code, date_key]
+    columns:
+      - name: model_name
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: ["lightgbm", "sarima", "seasonal_naive", "eia_day_ahead"]
+      - name: mape_pct
+        data_tests:
+          - dbt_utils.accepted_range:
+              arguments:
+                min_value: 0
